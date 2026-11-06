@@ -72,6 +72,7 @@ build {
       "scripts/01-stackurity.sh",
       "scripts/02-ufw.sh",
       "scripts/03-force-ssh-logout.sh",
+      "scripts/89-remove-droplet-agent.sh",
       "scripts/90-cleanup.sh",
       "scripts/98-no-secrets-check.sh",
       "scripts/99-img-check.sh",
