@@ -1,0 +1,18 @@
+#!/bin/sh
+# stackurity-domain <domain>: serve Stackurity at https://<domain> with a Let's Encrypt
+# certificate. Point the domain's A record at this droplet first.
+set -eu
+[ $# -eq 1 ] || { echo "usage: stackurity-domain stackurity.example.com"; exit 2; }
+D="$1"
+IP=$(curl -fsS --max-time 5 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || true)
+RESOLVED=$(getent ahostsv4 "$D" | awk 'NR==1{print $1}' || true)
+if [ -n "$IP" ] && [ "$RESOLVED" != "$IP" ]; then
+  echo "Warning: $D resolves to '${RESOLVED:-nothing}', not this droplet ($IP). Let's Encrypt will fail until it does."
+  printf 'Continue anyway? [y/N] '; read -r a; [ "$a" = y ] || exit 1
+fi
+cd /opt/stackurity
+sed -i "s|^STACKURITY_BASE_URL=.*|STACKURITY_BASE_URL=https://${D}|" .env
+/usr/local/bin/stackurity-caddyfile "$D"
+systemctl reload caddy
+docker compose up -d
+echo "Done. Open https://${D}"

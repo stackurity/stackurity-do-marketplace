@@ -1,0 +1,21 @@
+#!/bin/sh
+IP=$(curl -fsS --max-time 2 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address 2>/dev/null || hostname -I | awk '{print $1}')
+cat <<MOTD
+********************************************************************************
+Welcome to Stackurity, the open-source software inventory and vulnerability tracker.
+https://stackurity.ai   Docs: https://github.com/stackurity/stackurity/blob/main/docs/install.md
+
+Dashboard:    https://${IP}   (self-signed certificate until you set a domain)
+Setup token:  cat /root/stackurity-setup.txt   (used once, to create the first admin)
+
+Use your own domain (Let's Encrypt certificate, needed for passkeys):
+  1. Point an A record at ${IP}
+  2. Run: stackurity-domain stackurity.example.com
+
+Files: /opt/stackurity (docker-compose.yml, .env, secrets/)
+Logs:  cd /opt/stackurity && docker compose logs -f stackurity
+Upgrade: edit STACKURITY_IMAGE in /opt/stackurity/.env, then docker compose pull && docker compose up -d
+Back up the database volume and /opt/stackurity/secrets (secret_key decrypts stored secrets).
+To remove this message: rm /etc/update-motd.d/99-one-click
+********************************************************************************
+MOTD

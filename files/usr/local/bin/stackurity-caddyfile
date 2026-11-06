@@ -1,0 +1,16 @@
+#!/bin/sh
+# stackurity-caddyfile <host> [internal]  — writes /etc/caddy/Caddyfile.
+# "internal" = a self-signed certificate (for a bare IP address); otherwise Let's Encrypt.
+set -eu
+HOST="$1"; MODE="${2:-}"
+TLS=""; [ "$MODE" = internal ] && TLS="	tls internal"
+cat > /etc/caddy/Caddyfile <<CF
+https://${HOST} {
+${TLS}
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}
+http:// {
+	redir https://${HOST}{uri} permanent
+}
+CF

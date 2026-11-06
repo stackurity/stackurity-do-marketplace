@@ -1,0 +1,45 @@
+#!/bin/bash
+# Runs once, on the first boot of each new droplet made from the 1-Click image.
+# Every secret is generated here, on the customer's droplet, so no two droplets
+# share one and none exists in the image.
+set -euo pipefail
+exec > >(tee -a /var/log/stackurity-onboot.log) 2>&1
+cd /opt/stackurity
+
+umask 077
+mkdir -p secrets && chmod 700 secrets
+[ -s secrets/db_password ] || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > secrets/db_password
+printf 'postgres://stackurity:%s@postgres:5432/stackurity?sslmode=disable' "$(cat secrets/db_password)" > secrets/database_url
+[ -s secrets/secret_key ] || openssl rand -base64 32 | tr -d '\n' > secrets/secret_key
+# The containers run as non-root users; the 0700 directory keeps the files private on the host.
+chmod 644 secrets/db_password secrets/database_url secrets/secret_key
+
+IP=$(curl -fsS --max-time 5 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || hostname -I | awk '{print $1}')
+SETUP_TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+VERSION=$(cat /opt/stackurity/VERSION)
+
+cat > .env <<ENV
+STACKURITY_IMAGE=ghcr.io/stackurity/stackurity:${VERSION}
+STACKURITY_PORT=127.0.0.1:8080
+STACKURITY_BASE_URL=https://${IP}
+STACKURITY_TRUST_PROXY=true
+STACKURITY_TRUSTED_PROXY_HEADER=X-Forwarded-For
+STACKURITY_SETUP_TOKEN=${SETUP_TOKEN}
+ENV
+chmod 600 .env
+
+/usr/local/bin/stackurity-caddyfile "${IP}" internal
+systemctl restart caddy
+
+docker compose up -d
+
+cat > /root/stackurity-setup.txt <<TXT
+Stackurity dashboard: https://${IP}
+One-time setup token: ${SETUP_TOKEN}
+(Your browser will warn about the certificate until you set a domain: stackurity-domain your.domain)
+TXT
+chmod 600 /root/stackurity-setup.txt
+
+# Let root log in now that set-up is done (added by the image build).
+sed -i '/^Match User root/,/ForceCommand/d' /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true

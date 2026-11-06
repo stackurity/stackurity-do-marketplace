@@ -1,0 +1,12 @@
+# 1-Click additions to the upstream docker-compose.yml (kept unchanged).
+# secret_key is generated on the droplet's first boot; nothing is baked into the image.
+services:
+  stackurity:
+    environment:
+      STACKURITY_SECRET_KEY_FILE: /run/secrets/secret_key
+      STACKURITY_SETUP_TOKEN: ${STACKURITY_SETUP_TOKEN:-}
+    secrets: [database_url, secret_key]
+
+secrets:
+  secret_key:
+    file: ./secrets/secret_key
